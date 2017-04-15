@@ -4,7 +4,7 @@ upstream django {
 
 # конфигурация веб-сервера
 server {
-    listen      8000;
+    listen      {{port_num}};
     server_name    {{ipaddr }}; # замените на собственный домен или IP адрес
     charset     utf-8;
 

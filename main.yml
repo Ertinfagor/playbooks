@@ -1,0 +1,130 @@
+---
+- name: Install {{project_name}} enviroment
+  vars_files: 
+   - variables.yml
+  hosts: "{{hosts_group}}"
+  tasks:
+    - name: Install requiriments
+      become: yes
+      become_method: sudo
+      apt:
+        update_cache: yes
+        name: python-pip,uwsgi,uwsgi-plugin-python,nginx,postgresql,libpq-dev,python-psycopg2,build-essential,libssl-dev,libffi-dev,python-dev
+        state: latest
+    - name: Install virtualenv
+      become: yes
+      become_method: sudo
+      pip:
+       name: virtualenv
+       state: latest	 
+
+
+- name: Update configs
+  vars_files:
+    - variables.yml
+  gather_facts: no
+  hosts: "{{hosts_group}}"
+  tasks:
+    - name: Create UWSGI service
+      become: yes    
+      copy:
+        src: ./configs/emperor.uwsgi.service
+        dest: /etc/systemd/system/emperor.uwsgi.service
+    - name: Creates UWSGI conf directories
+      become: yes      
+      file: 
+        path: /etc/uwsgi/vassals 
+        state: directory
+    - name: Copy emperor conf
+      become: yes
+      copy:
+        src: ./configs/emperor.ini
+        dest: /etc/uwsgi/emperor.ini
+      notify:
+        - restart UWSGI
+  handlers:
+    - name: restart UWSGI
+      become: yes
+      systemd:
+       name: emperor.uwsgi
+       state: restarted
+       enabled: yes
+       masked: no
+- name: Deploy DB
+  hosts: "{{hosts_group}}"
+  become: yes
+  become_user: postgres
+  gather_facts: no
+  vars_files:
+   - variables.yml 
+  tasks:
+  - name: ensure database is created
+    postgresql_db: name={{dbname}}
+
+  - name: ensure user has access to database
+    postgresql_user: db={{dbname}} name={{dbuser}} password={{dbpassword}} priv=ALL
+
+  - name: ensure user does not have unnecessary privilege
+    postgresql_user: name={{dbuser}} role_attr_flags=NOSUPERUSER,NOCREATEDB
+  
+  - name: ensure no other user can access the database
+    postgresql_privs: db={{dbname}} role=PUBLIC type=database priv=ALL state=absent
+
+
+- name: Deploy project {{project_name}}
+  vars_files:
+  - variables.yml
+  gather_facts: no
+  hosts: "{{hosts_group}}"
+  tasks:
+    - name: Creates virtualenv directory
+      file: 
+        path:  '{{venv_path}}'
+        state: directory
+    - name: Create virtualenv
+      pip:
+        name: mezzanine,fabric,psycopg2
+        virtualenv: '{{venv_path}}'
+    - name: Deploy {{project_name}} to virtualenv
+      git: 
+        repo: '{{project_git}}'
+        dest: '{{venv_path}}/{{ project_name }}/'
+        force: yes
+    - name: Copy UWSGI conf
+      become: yes
+      template:
+        src: ./configs/project.ini.j2
+        dest: '/etc/uwsgi/vassals/{{ project_name }}.ini'
+      notify:
+        - restart UWSGI
+    - name: Copy NGINX conf
+      become: yes 
+      template:
+        src: ./configs/nginx.conf.j2
+        dest: /etc/nginx/sites-available/default
+      notify:
+        - restart NGINX    
+    - name: Update project settings
+      template:
+        src: ./configs/settings.py.j2
+        dest: '{{venv_path}}/{{ project_name }}/{{ project_name }}/settings.py'
+      notify:
+        - restart UWSGI
+    - name: migrate db
+      command: '{{venv_path}}/bin/python {{venv_path}}/{{ project_name }}/manage.py migrate'
+  handlers:
+    - name: restart UWSGI
+      become: yes
+      systemd:
+       name: emperor.uwsgi
+       state: restarted
+       enabled: yes
+       masked: no
+    - name: restart NGINX
+      become: yes
+      systemd:
+        name: nginx
+        state: restarted
+        enabled: yes
+        masked: no
+      

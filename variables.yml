@@ -1,10 +1,12 @@
 ---
-ipaddr: 192.168.4.41
-install_user: ubuntu
-venvs_dir: .virtualenvs
-project_name: myproject
-dbname: myapp
-dbuser: django
-dbpassword: mysupersecretpassword
-venv_path: '/home/{{install_user}}/{{venvs_dir}}/{{project_name}}' 
-project_git: https://github.com/Ertinfagor/testapp.git
+ipaddr: 192.168.4.50 #Интерфейс на котором будет работать приложение (используется в ALLOWEDHOSTS, NGINX Server name)
+port_num: 8000
+install_user: ubuntu #Имя пользователяф от которого выполняется информация 
+venvs_dir: .virtualenvs # Директория для виртуальных окружений
+project_name: myproject # Имя проекта
+dbname: myapp # Имя базы данных (используется в настройках проекта и при создании базы)
+dbuser: django  # Имя пользователя базы данных (используется в настройках проекта и при создании базы)
+dbpassword: mysupersecretpassword  # Пароль пользователя  базы данных (используется в настройках проекта и при создании базы)
+venv_path: '/home/{{install_user}}/{{venvs_dir}}/{{project_name}}'# каталог с приложением 
+project_git: https://github.com/Ertinfagor/testapp.git #репозиторий приложения
+hosts_group: webapp # имя группы хостов на которую деплоится приложение
