@@ -21,8 +21,12 @@
       pip:
         name: mezzanine,fabric,psycopg2
         virtualenv: ~/venv
-    - name: copy PROJECT
-      synchronize:
-        src: /vagrant/PROJECT/myproject
-        dest: /home/ubuntu/venv
+#    - name: copy PROJECT
+#      synchronize:
+#        src: /vagrant/PROJECT/myproject
+#        dest: /home/ubuntu/venv
     
+    - name: Deploy project
+      git: 
+        repo: 'https://github.com/Ertinfagor/testapp.git'
+        dest: /home/ubuntu/venv/myproject/
