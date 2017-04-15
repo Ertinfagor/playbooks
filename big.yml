@@ -83,7 +83,7 @@
         state: directory
     - name: Create virtualenv
       pip:
-        name: mezzanine,fabric
+        name: mezzanine,fabric,psycopg2
         virtualenv: '{{venv_path}}'
     - name: Deploy {{project_name}} to virtualenv
       git: 
