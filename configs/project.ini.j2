@@ -1,0 +1,12 @@
+[uwsgi]
+socket = 127.0.0.1:3031
+chdir =  {{venv_path}}/{{project_name}}
+wsgi-file = {{project_name}}/wsgi.py
+processes = 4
+threads = 2
+stats = 127.0.0.1:9191
+home =  {{venv_path}}
+master = true
+logto = {{venv_path}}/{{project_name}}/uwsgi.log
+plugin = python
+

@@ -1,0 +1,29 @@
+upstream django {
+    server 127.0.0.1:3031; # взаимодействие с uwsgi через веб-порт 
+}
+
+# конфигурация веб-сервера
+server {
+    listen      8000;
+    server_name    {{ipaddr }}; # замените на собственный домен или IP адрес
+    charset     utf-8;
+
+    # максимальный размер загружаемых на сервер данных
+    client_max_body_size 75M;  
+
+    # обслуживание медиа файлов и статики
+    location /media  {
+        alias {{venv_path}}/{{project_name}}/static/media;  # расположение медиафайлов (при необходимости измените)
+    }
+
+    location /static {
+        alias {{venv_path}}/{{project_name}}/static;  # расположение статики (при необходимости измените)
+
+    }
+
+    # Остальные запросы перенаправляются в Django приложение
+    location / {
+        uwsgi_pass  django;
+        include     uwsgi_params; 
+    }
+}

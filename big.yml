@@ -1,8 +1,10 @@
 ---
-- name: Create VENV
+- name: Create {{project_name}} enviroment
+  vars_files: 
+   - variables.yml
   hosts: all
   tasks:
-    - name: Install python-pip
+    - name: Install requiriments
       become: yes
       become_method: sudo
       apt:
@@ -16,17 +18,22 @@
        name: virtualenv
        state: latest	 
     - name: Creates directory
-      file: path=~/venv state=directory
+      file: 
+        path:  '{{venv_path}}'
+        state: directory
     - name: create venv
       pip:
         name: mezzanine,fabric,psycopg2
-        virtualenv: ~/venv
-    - name: Deploy project
+        virtualenv: '{{venv_path}}'
+    - name: Deploy {{project_name}}
       git: 
         repo: 'https://github.com/Ertinfagor/testapp.git'
-        dest: /home/ubuntu/venv/myproject/
+        dest: '{{venv_path}}/{{ project_name }}/'
+        force: yes
 
 - name: UWSGI
+  vars_files:
+    - variables.yml
   hosts: all
   tasks:
     - name: Creates directory
@@ -36,9 +43,9 @@
         state: directory
     - name: copy INI
       become: yes
-      copy:
-        src: ./configs/project.ini
-        dest: /etc/uwsgi/vassals/project.ini
+      template:
+        src: ./configs/project.ini.j2
+        dest: '/etc/uwsgi/vassals/{{ project_name }}.ini'
     - name: copy Emperor.ini
       become: yes
       copy:
@@ -51,14 +58,22 @@
         dest: /etc/systemd/system/emperor.uwsgi.service
     - name: start Service
       become: yes
-      command: systemctl start emperor.uwsgi.service
+      systemd:
+       name: emperor.uwsgi
+       state: restarted
+       enabled: yes
+       masked: no
+ 
+ #     command: systemctl start emperor.uwsgi.service
 - name: NGINX
+  vars_files: 
+  - variables.yml
   hosts: all
   tasks:
     - name: copy conf
       become: yes 
-      copy:
-        src: ./configs/nginx.conf
+      template:
+        src: ./configs/nginx.conf.j2
         dest: /etc/nginx/sites-available/default
     - name: NGINX | Starting NGINX
       become: yes
@@ -70,19 +85,10 @@
 - name: Postgres
   hosts: all
   become: yes
-  gather_facts: no
-
-  tasks:
-- hosts: all
-  become: yes
   become_user: postgres
   gather_facts: no
-
-  vars:
-    dbname: myapp
-    dbuser: django
-    dbpassword: mysupersecretpassword
-
+  vars_files:
+   - variables.yml 
   tasks:
   - name: ensure database is created
     postgresql_db: name={{dbname}}
@@ -96,7 +102,15 @@
   - name: ensure no other user can access the database
     postgresql_privs: db={{dbname}} role=PUBLIC type=database priv=ALL state=absent
 
-- hosts: all
+
+- name: migrate database
+  vars_files:
+  - variables.yml
+  hosts: all
   tasks:
+  - name: Copy settings
+    template:
+      src: ./configs/settings.py.j2
+      dest: '{{venv_path}}/{{ project_name }}/{{ project_name }}/settings.py'
   - name: migrate db
-    command: /home/ubuntu/venv/bin/python /home/ubuntu/venv/myproject/manage.py migrate
+    command: '{{venv_path}}/bin/python {{venv_path}}/{{ project_name }}/manage.py migrate'

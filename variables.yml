@@ -1,0 +1,10 @@
+---
+ipaddr: 192.168.4.41
+install_user: ubuntu
+venvs_dir: .virtualenvs
+project_name: myproject
+dbname: myapp
+dbuser: django
+dbpassword: mysupersecretpassword
+venv_path: '/home/{{install_user}}/{{venvs_dir}}/{{project_name}}' 
+project_git: https://github.com/Ertinfagor/testapp.git
