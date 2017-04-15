@@ -1,5 +1,5 @@
 ---
-- name: Create {{project_name}} enviroment
+- name: Install {{project_name}} enviroment
   vars_files: 
    - variables.yml
   hosts: all
@@ -17,72 +17,40 @@
       pip:
        name: virtualenv
        state: latest	 
-    - name: Creates directory
-      file: 
-        path:  '{{venv_path}}'
-        state: directory
-    - name: create venv
-      pip:
-        name: mezzanine,fabric,psycopg2
-        virtualenv: '{{venv_path}}'
-    - name: Deploy {{project_name}}
-      git: 
-        repo: 'https://github.com/Ertinfagor/testapp.git'
-        dest: '{{venv_path}}/{{ project_name }}/'
-        force: yes
 
-- name: UWSGI
+
+- name: Update configs
   vars_files:
     - variables.yml
+  gather_facts: no
   hosts: all
   tasks:
-    - name: Creates directory
+    - name: Create UWSGI service
+      become: yes    
+      copy:
+        src: ./configs/emperor.uwsgi.service
+        dest: /etc/systemd/system/emperor.uwsgi.service
+    - name: Creates UWSGI conf directories
       become: yes      
       file: 
         path: /etc/uwsgi/vassals 
         state: directory
-    - name: copy INI
-      become: yes
-      template:
-        src: ./configs/project.ini.j2
-        dest: '/etc/uwsgi/vassals/{{ project_name }}.ini'
-    - name: copy Emperor.ini
+    - name: Copy emperor conf
       become: yes
       copy:
         src: ./configs/emperor.ini
         dest: /etc/uwsgi/emperor.ini
-    - name: copy Service
-      become: yes
-      copy:
-        src: ./configs/emperor.uwsgi.service
-        dest: /etc/systemd/system/emperor.uwsgi.service
-    - name: start Service
+      notify:
+        - restart UWSGI
+  handlers:
+    - name: restart UWSGI
       become: yes
       systemd:
        name: emperor.uwsgi
        state: restarted
        enabled: yes
        masked: no
- 
- #     command: systemctl start emperor.uwsgi.service
-- name: NGINX
-  vars_files: 
-  - variables.yml
-  hosts: all
-  tasks:
-    - name: copy conf
-      become: yes 
-      template:
-        src: ./configs/nginx.conf.j2
-        dest: /etc/nginx/sites-available/default
-    - name: NGINX | Starting NGINX
-      become: yes
-      systemd:
-        name: nginx
-        state: restarted
-        enabled: yes
-        masked: no
-- name: Postgres
+- name: Deploy DB
   hosts: all
   become: yes
   become_user: postgres
@@ -103,14 +71,58 @@
     postgresql_privs: db={{dbname}} role=PUBLIC type=database priv=ALL state=absent
 
 
-- name: migrate database
+- name: Deploy project {{project_name}}
   vars_files:
   - variables.yml
+  gather_facts: no
   hosts: all
   tasks:
-  - name: Copy settings
-    template:
-      src: ./configs/settings.py.j2
-      dest: '{{venv_path}}/{{ project_name }}/{{ project_name }}/settings.py'
-  - name: migrate db
-    command: '{{venv_path}}/bin/python {{venv_path}}/{{ project_name }}/manage.py migrate'
+    - name: Creates virtualenv directory
+      file: 
+        path:  '{{venv_path}}'
+        state: directory
+    - name: Create virtualenv
+      pip:
+        name: mezzanine,fabric
+        virtualenv: '{{venv_path}}'
+    - name: Deploy {{project_name}} to virtualenv
+      git: 
+        repo: '{{project_git}}'
+        dest: '{{venv_path}}/{{ project_name }}/'
+        force: yes
+    - name: Copy UWSGI conf
+      become: yes
+      template:
+        src: ./configs/project.ini.j2
+        dest: '/etc/uwsgi/vassals/{{ project_name }}.ini'
+      notify:
+        - restart UWSGI
+    - name: Copy NGINX conf
+      become: yes 
+      template:
+        src: ./configs/nginx.conf.j2
+        dest: /etc/nginx/sites-available/default
+      notify:
+        - restart NGINX    
+    - name: Update project settings
+      template:
+        src: ./configs/settings.py.j2
+        dest: '{{venv_path}}/{{ project_name }}/{{ project_name }}/settings.py'
+    - name: migrate db
+      command: '{{venv_path}}/bin/python {{venv_path}}/{{ project_name }}/manage.py migrate'
+  handlers:
+    - name: restart UWSGI
+      become: yes
+      systemd:
+       name: emperor.uwsgi
+       state: restarted
+       enabled: yes
+       masked: no
+    - name: restart NGINX
+      become: yes
+      systemd:
+        name: nginx
+        state: restarted
+        enabled: yes
+        masked: no
+      
